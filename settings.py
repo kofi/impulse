@@ -12,7 +12,7 @@ ALL_MEDIA_ROOT = os.path.join(os.path.dirname(SITE_ROOT), 'files')
 
 
 ADMINS = (
-     ('Kofi Owusu', 'moloo.web@gmail.com'),
+     ('****', '***.web@gmail.com'),
 )
 
 MANAGERS = ADMINS
@@ -20,9 +20,9 @@ MANAGERS = ADMINS
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql', # Add 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
-        'NAME': 'impulse',                      # Or path to database file if using sqlite3.
-        'USER': 'djangodev',                      # Not used with sqlite3.  #u:root p:#Koomintah06$
-        'PASSWORD': 'sowhat',                  # Not used with sqlite3. 
+        'NAME': '*#*#*##*#*#',                      # Or path to database file if using sqlite3.
+        'USER': '*#*#*#*#',                      # Not used with sqlite3.  #u:root p:#Koomintah06$
+        'PASSWORD': '**#**#*#',                  # Not used with sqlite3. 
         'HOST': '',                      # Set to empty string for localhost. Not used with sqlite3.
         'PORT': '',                      # Set to empty string for default. Not used with sqlite3.
     }
@@ -166,8 +166,8 @@ GELDER_PHOTO_DISPLAY_TAG = 'display_'
 GELDER_MEDIA_FILESERVER = 'aws'   # options 'localhost' or 'aws
 
 # Keys for Amazon AWS + S3
-GELDER_AWS_ACCESS_KEY_ID = 'AKIAIECITDIFYV3PMTOQ'
-GELDER_AWS_SECRET_ACCESS_KEY = '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'
+GELDER_AWS_ACCESS_KEY_ID = '#*#*#*#*#*#*#**####'
+GELDER_AWS_SECRET_ACCESS_KEY = '#*#*#*#*#*#****#**##*#**##'
 
 # S3 BUCKETS
 GELDER_S3_PHOTO_BUCKET = 'impulsegelderphotos'
@@ -190,8 +190,8 @@ SORETHUMB_DEFAULT_IMAGE= os.path.join(MEDIA_ROOT,'default.jpg') #'/Users/moloo/d
 CELERYD_CONCURRENCY = 2
 BROKER_HOST = 'localhost'
 BROKER_PORT = 5672
-BROKER_USER = 'moloo'
-BROKER_PASSWORD = 'sowhat'
+BROKER_USER = '#^#^$'
+BROKER_PASSWORD = '#&#&#&#'
 BROKER_VHOST = '/'
 BROKER_BACKEND = 'django'  #'ghettoq.taproot.Database' #, 'django' #
 CELERYBEAT_SCHEDULER = 'djcelery.schedulers.DatabaseScheduler'
