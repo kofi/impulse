@@ -1,0 +1,13 @@
+{% if messages %}
+<div class="messages">
+	<p>
+    {% for message in messages %}
+	{% if messages|length == 1 %}  <span class="garnish">&nbsp;•&nbsp;</span>	{% endif %}
+    <span{% if message.tags %} class="{{ message.tags }}"{% endif %}>
+		{{ message }}
+	</span>
+	{% if not forloop.last or messages|length == 1  %}	<span class="garnish">&nbsp;•&nbsp;</span>	{% endif %}
+    {% endfor %}
+	</p>
+</div>
+{% endif %}

@@ -1,0 +1,31 @@
+{% load django_static %}
+<script type="text/javascript" charset="utf-8">
+	{% slimcontent "js"  %}
+	$(function(){
+		// $('.eventurlfull').hide();
+		if ($('.eventurl')){
+			$('.eventurl').mouseover(function(){  $('.eventurlfull').fadeIn('fast');	});
+			$('.eventurl').mouseout(function(){	
+				setTimeout(function(){
+					$('.eventurlfull').fadeOut('slow');	})
+				}, 500);
+		}
+	});
+	{% endslimcontent %}
+</script>
+
+<div id="" class="clear"></div>
+<div id="eventmeta" class="">
+	<div id="" class="catblurb">
+		{% if event.categoryname %}
+			{{ event.categoryname }}
+		{% endif %}
+	</div>
+	{% if event.url %}
+	<div id="" class="eventurl">
+		<p><a href="{{event.url}}">more info</a>&nbsp;:&nbsp;<span class="eventurlfull">{{event.url}}</span></p>
+	</div>
+	{% endif %}
+
+</div>
+<div id="" class="clear"></div>

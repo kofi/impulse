@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% load israel_forms %}
+{# {% load sorethumb %} #}
+
+
+{% block content %}
+
+	<div class="artistinfo">
+		<p>This is : {{ artist.name }}</p>
+	</div>
+	
+	{% for ap in artist.photo.all  %}
+	<div class="showimage" style="padding: 3px; border: 3px solid black;">
+		<img src="{{ ap.get_absolute_url }}" alt="">
+		<p>{{ ap.caption }}</p>
+	</div>
+	{% endfor %}
+		
+{% endblock %}

@@ -1,0 +1,16 @@
+{% if form.errors %} 
+<div class="formerrors">
+	<p>Please fix the error{{ form.errors|pluralize }} below:</p>
+	<table>
+		<tbody>
+		{% for field in form  %}
+			{% if field.errors %}
+			<tr>
+				<td>{{ field.label }}:</td><td>{{ field.errors|join:", " }}</td>
+			</tr>
+			{% endif %}	
+		{% endfor %}
+		</tbody>
+	</table>
+</div>
+{% endif %}

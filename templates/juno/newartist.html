@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load israel_forms %}
+{# {% load sorethumb %} #}
+
+
+{% block content %}
+	{# <script type="text/javascript" charset="utf-8"> #}
+	{#         $(function() { #}
+	{# 		{% if formnotice %} #}
+	{# 		$('form').hide(); #}
+	{# 		{% endif %} #}
+	{# 		$('a.showartform').click(function(){ #}
+	{# 			$('form').show(); #}
+	{# 		}); #}
+	{#         });	 #}
+	{# </script> #}
+	<div id="" class="form">
+		<div id="" class="formmain">
+			{# {% include "elements/formnotice.html" %} #}
+			{# {% if formnotice %} #}
+			{# <p style="text-align:right; padding-right:2em;"> #}
+			{# 	<a href='#' class="showartform" >Yes<a> or <a href="{% url gelder_events_now %}">No</a> #}
+			{# </p> #}
+			{# {% endif %}		 #}
+			<div class="clear"></div>
+		
+			<form action="{% url juno_newartist %}" method="post" accept-charset="utf-8" enctype="multipart/form-data">
+			{% csrf_token %}
+			{# {% print_form_errors form %} #}
+			
+			{{ form.as_p }}
+			
+			{# {% for f in form  %} #}
+			{# 	<div> #}
+			{# 		<div> #}
+			{# 			<div class="clear"></div> #}
+			{# 			{{ f.label_tag }} &nbsp;{{ f }} #}
+			{# 		</div> #}
+			{# 	 #}
+			{# 		<p class="formhelptext">{{ f.help_text }}</p> #}
+			{# 	</div> #}
+			{# {% endfor %} #}
+
+			{# {% include "gelder/event_asset_list.html" %} #}
+			<p><input type="submit" name="submit" value="Submit"></p>
+		
+			</form>
+			<div class="clear"></div>
+		</div>
+	
+	</div>
+	
+
+{% endblock %}

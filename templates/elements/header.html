@@ -1,0 +1,118 @@
+{# {% % load django_static %} #}
+<div class="navbar navbar-fixed-top">
+
+	<div class="container">
+
+		<script type="text/javascript">
+			{# {% slimcontent "js" %} #}
+
+			function submitLogin(f){
+				// submit the form 
+			    $(f).ajaxSubmit({
+					success: function(responseText, responseCode) {	
+						var status = responseText; //eval('(' + responseText + ')');
+						if (status.status){	
+							setTimeout(function(){	$('#quicklogin input').fadeOut(); 
+									$('#quicklogin label').fadeOut();	}, 1000);
+							$('.quickloginmsg').hide().text(status.msg).fadeIn();
+							setTimeout(function(){ $('#quicklogin').hide(); }, 4000);
+							updatenav();
+						} else {
+							$('.quickloginmsg').hide().html('Failed').fadeIn();
+							setTimeout(function(){	$('.quickloginmsg').hide();	}, 3600);
+							return false;
+						}
+					},
+					error: function(responseText, responseCode) {
+						var status = responseText; //eval(' (' + responseText + ')');
+						$('#quickloginmsg').hide().html(status.msg).fadeIn();
+						setTimeout(function(){	$('#quickloginmsg').hide();	}, 3600);
+					}
+				});
+				return false; 
+			}
+			function updatenav(){
+				$.ajax({ async:true,type:'post',
+						url:'/ajax_loadnav/',complete: function(res, json) {	
+						setTimeout(function(){ $('#nav').fadeOut('fast').html(res.responseText).fadeIn(1000); }, 6000);
+					} 
+				}); 
+		
+				return false;
+			}
+
+			$(function(){
+				$('.togglelogin').live('click', function(){
+					$('#quicklogin').toggle();
+					return false;
+				});
+		
+				$('#quicklogin form').live('submit',function() { 
+					submitLogin($(this));
+				    return false; 
+				});
+			});
+	
+			{# {% endslimcontent %}	 #}
+		</script>
+
+
+		<div id="logo" class="">
+			{# {% include "elements/logo.html" %} #}
+		</div>
+
+		<div id="nav" class="">
+			{# {% include "elements/nav.html" %} #}
+		</div>
+
+		<div id="" class="quicklogin">
+			{# {% include "elements/quicklogin.html" %} #}
+		</div>
+	</div>
+</div>
+
+<!-- {# {% load django_static %} #}
+<script type="text/javascript">
+$(function(){	setTimeout(function(){ $('.messages').fadeOut('slow'); }, 5000);	});
+
+// fix for AJAX requests to prevent cross-site scripting
+// need the code below for Django 1.3
+// http://docs.djangoproject.com/en/1.3/ref/contrib/csrf/#ajax
+$(document).ajaxSend(function(event, xhr, settings) {
+    function getCookie(name) {
+        var cookieValue = null;
+        if (document.cookie && document.cookie != '') {
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = jQuery.trim(cookies[i]);
+                // Does this cookie string begin with the name we want?
+                if (cookie.substring(0, name.length + 1) == (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    function sameOrigin(url) {
+        // url could be relative or scheme relative or absolute
+        var host = document.location.host; // host + port
+        var protocol = document.location.protocol;
+        var sr_origin = '//' + host;
+        var origin = protocol + sr_origin;
+        // Allow absolute or scheme relative URLs to same origin
+        return (url == origin || url.slice(0, origin.length + 1) == origin + '/') ||
+            (url == sr_origin || url.slice(0, sr_origin.length + 1) == sr_origin + '/') ||
+            // or any other URL that isn't scheme relative or absolute i.e relative.
+            !(/^(\/\/|http:|https:).*/.test(url));
+    }
+    function safeMethod(method) {
+        return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
+    }
+
+    if (!safeMethod(settings.type) && sameOrigin(settings.url)) {
+        xhr.setRequestHeader("X-CSRFToken", getCookie('csrftoken'));
+    }
+});
+</script>
+-->

@@ -1,0 +1,12 @@
+<style type="text/css" media="screen">
+	#formnotice { padding: 2px; margin: 0; }
+	#formnotice p { padding: 1px 2px; margin: 0; color: black; font-size: 105%; width: 100%; font-weight: bold; }
+	#formnotice p span { color: #F77900;}
+</style>
+<div id="formnotice" class="" style="{% if not formnotice %} display:none; {% endif %}">
+	{# {% for notice in formnotice  %} #}
+	<p><span class="garnish">&nbsp;•&nbsp;</span>
+		{{formnotice}}
+	</p>
+	{# {% endfor %} #}
+</div>

@@ -1,0 +1,391 @@
+#from celery.decorators import task
+from celery.task import task
+from django.conf import settings
+from django.utils.encoding import smart_str
+
+from boto.s3.connection import S3Connection
+from boto.s3.key import Key
+from boto.exception import AWSConnectionError, S3ResponseError, S3PermissionsError, S3CreateError
+from vimeo import VimeoClient
+
+#import datetime
+
+#from wall.shortcuts import get_object_or_none
+
+AWS_ACCESS_KEY_ID = getattr(settings, 'GELDER_AWS_ACCESS_KEY_ID', None)
+AWS_SECRET_ACCESS_KEY = getattr(settings, 'GELDER_AWS_SECRET_ACCESS_KEY', None)
+
+
+def get_s3_bucket(bucket_name = None ):  #, photo_type=None):
+	"""docstring for get_s3_bucket"""
+	#name = photo_type if not bucket_name else bucket_name
+	if not bucket_name:
+		return None
+	bucket_name  = bucket_name.lowercase()
+	buckets = {
+		'photo' : settings.GELDER_S3_PHOTO_BUCKET, 
+		'audio' : settings.GELDER_S3_AUDIO_BUCKET,
+		'video' : settings.GELDER_S3_VIDEO_BUCKET,
+		# 'audioart' : settings.GELDER_S3_AUDIOART_BUCKET,
+		# 'event_display': settings.S3_PHOTO_DISPLAY_BUCKET, 
+		# 'small_thumb': settings.S3_PHOTO_THUMB_BUCKET,
+	}
+	return buckets[bucket_name]
+
+@task(max_retries=3, default_retry_delay= 15)
+def delete_from_s3(key, bucket, **kwargs):
+	"""docstring for delete_from_s3"""
+	logger = delete_from_s3.get_logger(**kwargs)
+	if bucket is None:
+		return False
+	try:
+		conn = S3Connection(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+		photobuckets =  [ bucket ]
+		# if bucket == settings.GELDER_S3_PHOTO_BUCKET:
+		# 	photobuckets =  [ bucket, settings.S3_PHOTO_DISPLAY_BUCKET, settings.S3_PHOTO_THUMB_BUCKET ]
+		
+		for	pb in photobuckets:
+			b = conn.create_bucket(pb)
+			k = b.get_key(key)
+			if k:
+				k.delete()
+				
+	except (AWSConnectionError, S3ResponseError, S3PermissionsError, S3CreateError ), exc:
+		logger.info('(error) Boto s3 failed deleting key: %s from bucket:%s', (key, bucket,) )
+		#delete_from_s3.retry(exc= exc, countdown=30)
+		return false
+	return True
+
+
+@task(max_retries=3, default_retry_delay= 15)
+def download_from_s3_task(key, bucket, fileto = None, **kwargs):
+	"""docstring for download_from_s3_task"""
+	if bucket is None:
+		return None
+	if key is None:
+		return None
+	logger = download_from_s3.get_logger(**kwargs)
+	r = download_from_s3(key, bucket, fileto, **kwargs)
+	if r['status']:
+		return True
+	else:
+		logger.info('(error) Boto s3 failed downloading key: %s from bucket:%s', (key, bucket,) )
+		download_from_s3_task.retry(exc= r['exc'], countdown=30)
+
+def download_from_s3(key, bucket, fileto = None, **kwargs):
+	"""docstring for download_from_s3"""
+	if not fileto:
+		return {'status': True}
+	try:
+		conn = S3Connection(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+		b = conn.get_bucket(bucket)
+		k = b.get_key(key)
+		
+		if k:
+			import os
+			# Check if we are allowed to overwrite an existing file.
+			overwrite = kwargs.get('overwrite', False)
+			# Get the directory to download the file to
+			fileto_dir = os.path.dirname(fileto)
+			# If fileto points to a directory generate the full filepath including filename (=key).
+			if fileto_dir == fileto:
+				fileto = os.path.join(fileto, key)
+			# If the file already exists and 'overwrite' is false return.
+			if not overwrite and os.path.isfile(fileto):
+				return {'status': True}
+			
+			if not os.path.isdir(fileto_dir):
+				os.makedirs(fileto_dir)
+			# Get file from s3 bucket and write to file.
+			k.get_contents_to_filename(fileto)
+			return {'status': True}
+			
+	except (AWSConnectionError, S3ResponseError, S3PermissionsError, S3CreateError ), exc:
+		return {'status': False, 'exc': exc }
+
+@task(max_retries=3, default_retry_delay= 15)
+def upload_photo_to_s3_task(photo_id, **kwargs):
+	"""
+	docstring for upload_to_s3
+	See for more info: http://ask.github.com/celery/userguide/tasks.html#blog-tasks-py
+	"""
+	if not photo_id:
+		return False
+		
+	logger = upload_photo_to_s3_task.get_logger(**kwargs)
+	r = upload_photo_to_s3(photo_id, **kwargs)
+	
+	if r['status']:
+		logger.info(r.get('msg','Successfully uploaded to s3.'))
+		return True
+	else:
+		logger.info(r.get('msg','Failed to upload to s3.'))
+		upload_photo_to_s3_task.retry(exc= r.get('exc', None), countdown=30)
+		return False
+	
+	return True
+
+
+def upload_photo_to_s3(photo_id, **kwargs):
+	"""docstring for upload_photo_to_s3"""
+	from gelder.models import Photo #PhotoUrl, AudioArtUrl
+	
+	# modeldict = { 'PhotoUrl': PhotoUrl, 'AudioArtUrl': AudioArtUrl }
+	# photourl_model = kwargs.get('model', 'PhotoUrl') 
+	# photourl = modeldict.get(photourl_model,PhotoUrl).objects.get(id = photourl_id) or None
+	# photo = photourl.photo if photourl_model == 'PhotoUrl' else photourl.audioart	
+	photo = Photo.objects.get(id = photo_id ) or None
+	#raise Exception([photo_id, photo,])
+	if photo is None:
+		msg = '(error) in upload_photo_to_s3. cannot find %s with id: %s ', (type(photo).__name__, photo_id)
+		return {'status':True, 'msg': msg }
+	#photo = modelobject.photo
+	msg = ''
+	
+	try:
+		conn = S3Connection(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+		bucketname = settings.GELDER_S3_PHOTO_BUCKET #if photourl_model == 'PhotoUrl' else settings.S3_AUDIOART_BUCKET
+		bucket = conn.create_bucket(bucketname) 
+		
+		k = Key(bucket)
+		k.key = photo.basename
+		k.set_metadata('checksum', photo.checksum)
+		#raise Exception([photo, photo.photo, photo.photo.path, photo.basename, ])
+		#path = photo.photo.path if photourl_model == 'PhotoUrl' else photourl.photo.generate_photo_thumb('event_display')
+		path = photo.photo.path #if photourl_model == 'PhotoUrl' else photourl.photo.generate_photo_thumb('event_display')
+		## upload the photo
+		k.set_contents_from_filename(photo.photo.path)	
+		k.set_acl("public-read")
+
+		# if photourl_model == 'PhotoUrl':
+		# thumbinfo = { 'event_display': settings.GELDER_S3_PHOTO_BUCKET, 
+		# 			  'small_thumb': settings.GELDER_S3_PHOTO_BUCKET 	}
+		import os
+		# then upload the display
+		thumb_format = 'event_display'
+		thumburl = photo.generate_photo_thumb(thumb_format)
+		bucket = conn.create_bucket(bucketname)
+		k = Key(bucket)
+		k.key = '%s%s' % (settings.GELDER_PHOTO_DISPLAY_TAG, photo.basename)
+		if os.path.isfile(thumburl):
+			k.set_contents_from_filename(thumburl)
+			k.set_acl("public-read")
+			#if bucket.get_key(k.key):
+			#	msg = '(error) s3 failed uploading photo with id: %s', (photo_id) 
+			#	return {'status':False, 'exc': None, 'msg': msg }
+			#	try:
+			#		os.remove(thumburl)
+			#		except IOError as (errno, strerror):
+			#		pass #print "I/O error({0}): {1}".format(errno, strerror)
+		
+		# then upload the thumbnail
+		thumb_format = 'small_thumb'
+		thumburl = photo.generate_photo_thumb(thumb_format)
+		bucket = conn.create_bucket(bucketname)
+		k = Key(bucket)
+		k.key = '%s%s' % (settings.GELDER_PHOTO_THUMB_TAG, photo.basename)
+		if os.path.isfile(thumburl):
+			k.set_contents_from_filename(thumburl)
+			k.set_acl("public-read")
+			#if bucket.get_key(k.key) is None:
+			#	msg = '(error) s3 failed uploading photo with id: %s', (photo_id) 
+			#	return {'status':False, 'exc': None, 'msg': msg }
+			#	try:
+			#		os.remove(thumburl)
+			#	except IOError as (errno, strerror):
+			#		pass #print "I/O error({0}): {1}".format(errno, strerror)		
+		
+		# for thumb_format, thumb_bucket in thumbinfo.iteritems():
+		# 	thumburl = photo.photo.generate_photo_thumb(thumb_format)
+		# 	bucket = conn.create_bucket(thumb_bucket)
+		# 	# Delete the old key
+		# 	oldkey = bucket.get_key(photourl.photo.basename)
+		# 	if oldkey:
+		# 		oldkey.delete
+		# 
+		# 	k = Key(bucket)
+		# 	k.key = photourl.photo.basename
+		# 	if os.path.isfile(thumburl):
+		# 		k.set_contents_from_filename(thumburl)
+		# 		k.set_acl("public-read")
+		# 		if bucket.get_key(k.key):
+		# 			os.remove(thumburl)
+		photo.uploaded = True
+		#import datetime
+		#photo.uploaddate = datetime.datetime.now
+		photo.save()
+		msg = '(success) uploaded to s3 for photo with key: %s', (photo.basename,) 
+		#raise Exception([msg, photo.id, photo.photo.path, ])
+	
+	except (AWSConnectionError, S3ResponseError, S3PermissionsError, S3CreateError ), exc:
+		msg = '(error) s3 failed uploading photo with id: %s', (photo_id) 
+		return {'status':False, 'exc': exc, 'msg': msg }
+		
+	return {'status': True, 'msg':msg}
+
+@task(max_retries=3, default_retry_delay= 15)
+def upload_audio_to_s3(audio_id, **kwargs):
+	"""docstring for upload_photo_to_s3"""
+	from gelder.models import Audio
+	logger = upload_audio_to_s3.get_logger(**kwargs)
+	audio = Audio.objects.get(id= audio_id) or None
+	if not audio:
+		logger.info('(error) in upload_audio_to_s3. cannot find audio with id: %s ', (audio_id) )
+		return False
+		
+	try:
+		conn = S3Connection(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+		bucket = conn.create_bucket(settings.GELDER_S3_AUDIO_BUCKET)
+		k = Key(bucket)
+		k.key = audio.basename
+		k.set_metadata('checksum', audio.checksum)
+		k.set_contents_from_filename(audio.audio.path)
+		k.set_acl("public-read")
+		logger.info('(success) Boto s3 uploaded %s with id: %s', (type(audio).__name__, audio_id) )
+		audio.uploaded = True
+		#audio.uploaddate = datetime.datetime.now
+		audio.save()
+		## include the upload for the albumart
+		
+	except (AWSConnectionError, S3ResponseError, S3PermissionsError, S3CreateError ), exc:
+		logger.info('(error) s3 failed uploading %s with id: %s', (type(audio).__name__,audio_id) )
+		upload_audio_to_s3.retry(exc= exc, countdown=30)
+		
+	return True
+
+		
+@task(max_retries=3, default_retry_delay= 15)
+def upload_video_to_s3(video_id, **kwargs):
+	"""docstring for upload_photo_to_s3"""
+	from gelder.models import Video
+	logger = upload_video_to_s3.get_logger(**kwargs)
+	video = Video.objects.get(id= video_id) or None
+	if not video:
+		logger.info('(error) in upload_video_to_s3. cannot find video with id: %s ', (video_id) )
+		return False
+	
+	try:
+		conn = S3Connection(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+		bucket = conn.create_bucket(settings.GELDER_S3_VIDEO_BUCKET)
+		k = Key(bucket)
+		k.key = video.basename
+		k.set_metadata('checksum', video.checksum)
+		k.set_contents_from_filename(video.video.path)
+		k.set_acl("public-read")
+		logger.info('(success) Boto s3 uploaded %s with id: %s', (type(video).__name__, video_id) )
+		video.uploaded = True
+		#import datetime
+		#video.uploaddate = datetime.datetime.now
+		video.save()
+		## include the upload for the albumart
+		
+	except (AWSConnectionError, S3ResponseError, S3PermissionsError, S3CreateError ), exc:
+		logger.info('(error) s3 failed uploading %s with id: %s', (type(video).__name__,video_id) )
+		upload_audio_to_s3.retry(exc= exc, countdown=30)
+	
+	return True	
+
+
+@task(max_retries=3, default_retry_delay= 15)
+def upload_video_to_vimeo(video_id, **kwargs):
+	"""docstring for upload_to_vimeo"""
+	"""
+		General 4 steps are given here: http://vimeo.com/api/docs/oauth
+		using the python vimeo library I originally did:
+		from vimeo import VimeoClient
+		import settings
+		vio = VimeoClient(format='json',key= settings.VIMEO_KEY,secret=settings.VIMEO_SECRET),
+		url = vio.get_authorization_url(permission='write')		## this returns a URL to be accessed
+		## get the verifier value after the url above has redirected to the application callback
+		vio.set_verifier('the-access-verifier-string-from-above')   
+		access_token = vio.get_access_token()
+		## get the oauth token + oauth secret 
+		str(access_token)    OR access_token.__str__()
+		## these should be stored; they are valid unless the vimeo account holder deletes them ... 
+		## which is never for me
+		
+		## for any further calls use initialize the VimeoClient as follows
+		vio = VimeoClient(format='json',key=settings.VIMEO_KEY,secret=settings.VIMEO_SECRET,
+					token=settings.VIMEO_OAUTH_TOKEN, token_secret= settings.VIMEO_OAUTH_TOKEN_SECRET)
+		
+		## then continue with the upload
+	"""
+	from gelder.models import Video
+	logger = upload_video_to_vimeo.get_logger(**kwargs)
+	videourl = Video.objects.get(id = video_id)
+	
+	vio = VimeoClient(format='json',key=settings.VIMEO_KEY,secret=settings.VIMEO_SECRET,
+				token=settings.VIMEO_OAUTH_TOKEN, token_secret= settings.VIMEO_OAUTH_TOKEN_SECRET)
+	# get quota here or instantiate another vio client and check the quota before uploading
+	uploader = vio.get_uploader()
+	uploader.upload(smart_str(videourl.video.path))
+	ucresponse = uploader.complete()
+	
+	#if ucresponse is not None and ucresponse['video_id']:
+	videourl.extern = 'vimeo'
+	videourl.externurl =  ucresponse['video_id'] 
+	videourl.on_extern = True
+	videourl.save()
+	logger.info('(success) Boto s3 uploaded video with id: %s to vimeo', (video_id) )
+	#raise Exception([uresponse, str(uresponse), ucresponse])
+	return True
+
+
+@task(max_retries=3, default_retry_delay= 15)
+def upload_video_to_youtube(video_id, **kwargs):
+	"""docstring for upload_to_youtube"""
+	from gelder.models import Video
+	import gdata.youtube
+	import gdata.youtube.service
+	
+	logger = upload_video_to_youtube.get_logger(**kwargs)
+	videourl = Video.objects.get(id = video_id)
+	
+	yt_service = gdata.youtube.service.YouTubeService()
+	# The YouTube API does not currently support HTTPS/SSL access.
+	yt_service.ssl = settings.YT_SERVICE_SSL
+	
+	# A complete client login request
+	yt_service.email = settings.YT_SERVICE_EMAIL
+	yt_service.password = settings.YT_SERVICE_PASSWORD
+	yt_service.source = settings.YT_SERVICE_SOURCE
+	yt_service.developer_key = settings.YT_SERVICE_DEVELOPER_KEY
+	yt_service.client_id = settings.YT_SERVICE_CLIENT_ID
+	yt_service.ProgrammaticLogin() 
+	
+	my_media_group = gdata.media.Group(
+		title=gdata.media.Title(text=videourl.event.title),
+		description=gdata.media.Description(description_type='plain', 
+						text='video for title:%s' % (smart_str(videourl.event.title))),
+		keywords=gdata.media.Keywords(text='short, funny'),
+		category=[gdata.media.Category( text='Entertainment',
+					scheme='http://gdata.youtube.com/schemas/2007/categories.cat', label='Entertainment')],
+		player=None,
+		private=gdata.media.Private()
+	)
+
+	# create the gdata.youtube.YouTubeVideoEntry to be uploaded
+	video_entry = gdata.youtube.YouTubeVideoEntry(media=my_media_group,)
+	new_entry = yt_service.InsertVideoEntry(video_entry, smart_str(videourl.video.path))
+
+	#upload_status = yt_service.CheckUploadStatus(new_entry)
+	#if upload_status is not None:
+	#video_upload_state = upload_status[0]
+	#detailed_message = upload_status[1]
+	videourl.extern = 'youtube'
+	eurl = new_entry.id.text #GetMediaURL()
+	eurl = eurl.split('/')
+	videourl.externurl = eurl[len(eurl)-1]
+	videourl.on_extern = True
+	videourl.save()
+	
+	logger.info('(success) Boto s3 uploaded video with id: %s to vimeo', (video_id) )
+	
+	return True
+
+@task(max_retries=3, default_retry_delay= 15)
+def update_event_status(event_id, event_state,):
+	"""docstring for update_event_status"""
+	pass
+
+

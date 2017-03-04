@@ -1,0 +1,20 @@
+{# {% load django_static %} #}
+<ul>
+	{% if user.is_anonymous or user.is_staff %}
+	<li class="userreg tohover"><a href="/accounts/register/">register</a></li>
+	<li class="userlogin togglelogin tohover"><a href="/accounts/login/?next=/e/">login</a></li>
+	<li class="twitteruserlogin">
+	<a href="{% url social:begin 'twitter' %}">   {# "{% url twitter_login %}?next={{ next }}" #}
+		<img src="{% staticfile 'img/sign-in-with-twitter-l.png' %}" alt="" border="0" />
+	</a>
+	</li>
+	{% endif %}
+	{% if user.is_authenticated and not user.is_staff and not user.is_superuser %}
+	<li class="eschedule tohover"><a href="/e/add/">add ad</a></li>
+	<li class="eindex tohover"><a href="/e/all/">your ads</a></li>
+	<li class="userlogin tohover">
+		<a href="/accounts/logout/?next=/e/">logout&nbsp;<span class="navusername">-&nbsp;{{ user.username }}</span></a>
+	</li>
+	{% endif %}
+
+</ul>
